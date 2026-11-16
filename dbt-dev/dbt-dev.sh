@@ -6,10 +6,15 @@ set -uo pipefail
 
 log() { echo "[dbt-dev] $*"; }
 
+# ── VERSION STAMP — update this string on every deploy to confirm new code ran ──
+log "=== dbt-dev START 2026-11-16-v4 ==="
+
 CONFIG_B64='${config_b64}'
 
 mkdir -p "$HOME/.init" "$HOME/.local/bin"
 export PATH="$HOME/.local/bin:$PATH"
+
+log "config_b64 length: $${#CONFIG_B64}"
 
 if ! command -v python3 >/dev/null 2>&1; then
   log "python3 not found; cannot run dbt-dev setup."
@@ -18,8 +23,9 @@ fi
 
 CONFIG_FILE="$(mktemp)"
 trap 'rm -f "$CONFIG_FILE"' EXIT
-echo "$CONFIG_B64" | base64 -d > "$CONFIG_FILE"
+echo "$CONFIG_B64" | base64 -d > "$CONFIG_FILE" || { log "FATAL: base64 decode failed"; exit 1; }
 chmod 600 "$CONFIG_FILE"
+log "config written to $CONFIG_FILE ($(wc -c < "$CONFIG_FILE") bytes)"
 
 cfg() { python3 -c 'import json,sys; v=json.load(open(sys.argv[1]))[sys.argv[2]]; print(v if isinstance(v,str) else json.dumps(v))' "$CONFIG_FILE" "$1"; }
 
@@ -71,6 +77,8 @@ for a in json.load(open(sys.argv[1])).get('adapters', []):
     ]))
 " "$CONFIG_FILE" 2>&1) || { _adapters_err="$_adapters_out"; _adapters_out=""; }
 [ -n "$_adapters_err" ] && log "adapters parse error: $_adapters_err"
+log "adapters_out=$(printf '%s' "$_adapters_out" | wc -l) lines"
+[ -z "$_adapters_out" ] && log "WARNING: no adapters found in config — wrappers will not be created"
 
 if [ -n "$_adapters_out" ]; then
   _tab=$(printf '\t')
@@ -121,6 +129,7 @@ if [ -n "$_adapters_out" ]; then
     fi
   done < "$_adapters_tmp"
   rm -f "$_adapters_tmp"
+  log "step 2 complete — ls ~/.local/bin/dbt*: $(ls ~/.local/bin/dbt* 2>/dev/null | tr '\n' ' ' || echo 'none')"
 fi
 
 # ── 3. dbt-graphify ───────────────────────────────────────────────────────────
@@ -354,6 +363,7 @@ if [ -n "$_project_dir" ] && [ -f "$_project_dir/dbt_project.yml" ]; then
   "$HOME/.local/bin/dbt" deps --project-dir "$_project_dir" || log "dbt deps failed, continuing..."
 fi
 
+log "=== dbt-dev END 2026-11-16-v4 ==="
 ) || echo "[dbt-dev] setup failed, continuing..."
 export PATH="$HOME/.local/bin:$PATH"
 # ── end dbt-dev ───────────────────────────────────────────────────────────────
