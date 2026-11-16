@@ -64,10 +64,13 @@ fi
 # Installs each entry from the adapters list into an isolated venv and creates
 # a named CLI command in ~/.local/bin that sets DBT_PROJECT_DIR automatically.
 _adapters_err=""
+# Use \x01 (ASCII SOH) as field separator — tab is IFS whitespace so consecutive
+# empty tabs collapse, causing fields to shift. \x01 is never whitespace.
 _adapters_out=$(python3 -c "
 import json, sys
+sep = '\x01'
 for a in json.load(open(sys.argv[1])).get('adapters', []):
-    print('\t'.join([
+    print(sep.join([
         a['type'],
         a.get('core_version') or '',
         a.get('adapter_version') or '',
@@ -81,12 +84,12 @@ log "adapters_out=$(printf '%s' "$_adapters_out" | wc -l) lines"
 [ -z "$_adapters_out" ] && log "WARNING: no adapters found in config — wrappers will not be created"
 
 if [ -n "$_adapters_out" ]; then
-  _tab=$(printf '\t')
+  _sep=$(printf '\001')
   # Write to a temp file so the while loop runs in the current shell, not a
   # pipeline subshell. This prevents set -e from killing the loop on venv errors.
   _adapters_tmp=$(mktemp)
   printf '%s\n' "$_adapters_out" > "$_adapters_tmp"
-  while IFS="$_tab" read -r _type _core_ver _adapter_ver _venv _cmd _proj; do
+  while IFS="$_sep" read -r _type _core_ver _adapter_ver _venv _cmd _proj; do
     [ -z "$_type" ] && continue
     _venv="$${_venv:-$HOME/.venvs/dbt-$_type}"
     _cmd="$${_cmd:-dbt-$_type}"
