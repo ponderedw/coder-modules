@@ -91,10 +91,12 @@ if [ -n "$_adapters_out" ]; then
   printf '%s\n' "$_adapters_out" > "$_adapters_tmp"
   while IFS="$_sep" read -r _type _core_ver _adapter_ver _venv _cmd _proj; do
     [ -z "$_type" ] && continue
-    _venv="$${_venv:-$HOME/.venvs/dbt-$_type}"
+    # Default venv: .venv inside project dir if set, else ~/.venvs/dbt-{type}
+    [ -z "$_venv" ] && [ -n "$_proj" ] && _venv="$_proj/.venv"
+    [ -z "$_venv" ] && _venv="$HOME/.venvs/dbt-$_type"
     _cmd="$${_cmd:-dbt-$_type}"
-    _core_pkg="dbt-core$${_core_ver:+==$_core_ver}"
-    _adapter_pkg="dbt-$_type$${_adapter_ver:+==$_adapter_ver}"
+    _core_pkg="dbt-core$${_core_ver:+~=$_core_ver}"
+    _adapter_pkg="dbt-$_type$${_adapter_ver:+~=$_adapter_ver}"
     _wrapper="$HOME/.local/bin/$_cmd"
     log "Processing adapter: type=$_type cmd=$_cmd proj=$_proj"
     if [ "$_type" = "fusion" ]; then
@@ -109,9 +111,10 @@ if [ -n "$_adapters_out" ]; then
       log "Command '$_cmd' created (fusion wrapper$${_proj:+, project: $_proj})"
     else
       # Create wrapper first so the command always exists even if install hangs/fails.
+      # Use `cd` instead of --project-dir: more compatible across dbt-core versions.
       if [ -n "$_proj" ]; then
-        printf '#!/bin/sh\nexec "%s/bin/dbt" --project-dir "%s" "$@"\n' \
-          "$_venv" "$_proj" > "$_wrapper"
+        printf '#!/bin/sh\ncd "%s" || exit 1\nexec "%s/bin/dbt" "$@"\n' \
+          "$_proj" "$_venv" > "$_wrapper"
       else
         printf '#!/bin/sh\nexec "%s/bin/dbt" "$@"\n' "$_venv" > "$_wrapper"
       fi
