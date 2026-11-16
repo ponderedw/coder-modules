@@ -68,10 +68,10 @@ if [ -n "$_adapters_out" ]; then
   _tab=$(printf '\t')
   printf '%s\n' "$_adapters_out" | while IFS="$_tab" read -r _type _core_ver _adapter_ver _venv _cmd _proj; do
     [ -z "$_type" ] && continue
-    _venv="${_venv:-$HOME/.venvs/dbt-$_type}"
-    _cmd="${_cmd:-dbt-$_type}"
-    _core_pkg="dbt-core${_core_ver:+==$_core_ver}"
-    _adapter_pkg="dbt-${_type}${_adapter_ver:+==$_adapter_ver}"
+    _venv="$${_venv:-$HOME/.venvs/dbt-$_type}"
+    _cmd="$${_cmd:-dbt-$_type}"
+    _core_pkg="dbt-core$${_core_ver:+==$_core_ver}"
+    _adapter_pkg="dbt-$_type$${_adapter_ver:+==$_adapter_ver}"
     _wrapper="$HOME/.local/bin/$_cmd"
     if [ "$_type" = "fusion" ]; then
       # No venv — wrap the Fusion binary (dbtf) already installed in step 1.
@@ -82,7 +82,7 @@ if [ -n "$_adapters_out" ]; then
         printf '#!/bin/sh\nexec "$HOME/.local/bin/dbtf" "$@"\n' > "$_wrapper"
       fi
       chmod +x "$_wrapper"
-      log "Command '$_cmd' created (fusion wrapper${_proj:+, project: $_proj})"
+      log "Command '$_cmd' created (fusion wrapper$${_proj:+, project: $_proj})"
     else
       # Python venv adapter.
       if [ -d "$_venv" ]; then
@@ -102,7 +102,7 @@ if [ -n "$_adapters_out" ]; then
         printf '#!/bin/sh\nexec "%s/bin/dbt" "$@"\n' "$_venv" > "$_wrapper"
       fi
       chmod +x "$_wrapper"
-      log "Command '$_cmd' created (venv: $_venv${_proj:+, project: $_proj})"
+      log "Command '$_cmd' created (venv: $_venv$${_proj:+, project: $_proj})"
       "$_venv/bin/dbt" --version 2>/dev/null | head -1 || log "dbt-$_type venv dbt not found"
     fi
   done
