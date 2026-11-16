@@ -40,7 +40,7 @@ variable "claude_code_version" {
 
 variable "litellm_base_url" {
   type    = string
-  default = "https://litellm.uncsch.org"
+  default = ""
 }
 
 variable "model" {
