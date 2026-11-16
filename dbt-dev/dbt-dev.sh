@@ -57,6 +57,7 @@ fi
 # ── 2. Python dbt adapters ────────────────────────────────────────────────────
 # Installs each entry from the adapters list into an isolated venv and creates
 # a named CLI command in ~/.local/bin that sets DBT_PROJECT_DIR automatically.
+_adapters_err=""
 _adapters_out=$(python3 -c "
 import json, sys
 for a in json.load(open(sys.argv[1])).get('adapters', []):
@@ -68,17 +69,23 @@ for a in json.load(open(sys.argv[1])).get('adapters', []):
         a.get('command') or '',
         a.get('project_dir') or '',
     ]))
-" "$CONFIG_FILE" 2>/dev/null || true)
+" "$CONFIG_FILE" 2>&1) || { _adapters_err="$_adapters_out"; _adapters_out=""; }
+[ -n "$_adapters_err" ] && log "adapters parse error: $_adapters_err"
 
 if [ -n "$_adapters_out" ]; then
   _tab=$(printf '\t')
-  printf '%s\n' "$_adapters_out" | while IFS="$_tab" read -r _type _core_ver _adapter_ver _venv _cmd _proj; do
+  # Write to a temp file so the while loop runs in the current shell, not a
+  # pipeline subshell. This prevents set -e from killing the loop on venv errors.
+  _adapters_tmp=$(mktemp)
+  printf '%s\n' "$_adapters_out" > "$_adapters_tmp"
+  while IFS="$_tab" read -r _type _core_ver _adapter_ver _venv _cmd _proj; do
     [ -z "$_type" ] && continue
     _venv="$${_venv:-$HOME/.venvs/dbt-$_type}"
     _cmd="$${_cmd:-dbt-$_type}"
     _core_pkg="dbt-core$${_core_ver:+==$_core_ver}"
     _adapter_pkg="dbt-$_type$${_adapter_ver:+==$_adapter_ver}"
     _wrapper="$HOME/.local/bin/$_cmd"
+    log "Processing adapter: type=$_type cmd=$_cmd proj=$_proj"
     if [ "$_type" = "fusion" ]; then
       # No venv — wrap the Fusion binary (dbtf) already installed in step 1.
       if [ -n "$_proj" ]; then
@@ -90,17 +97,7 @@ if [ -n "$_adapters_out" ]; then
       chmod +x "$_wrapper"
       log "Command '$_cmd' created (fusion wrapper$${_proj:+, project: $_proj})"
     else
-      # Python venv adapter.
-      if [ -d "$_venv" ]; then
-        log "dbt-$_type venv already exists at $_venv, skipping."
-      else
-        log "Installing dbt-$_type venv at $_venv..."
-        mkdir -p "$(dirname "$_venv")"
-        python3 -m venv "$_venv" || { log "dbt-$_type venv creation failed, continuing..."; }
-        "$_venv/bin/pip" install --quiet --upgrade pip || true
-        "$_venv/bin/pip" install --quiet "$_core_pkg" "$_adapter_pkg" || log "dbt-$_type install failed, continuing..."
-        log "dbt-$_type installed."
-      fi
+      # Create wrapper first so the command always exists even if install hangs/fails.
       if [ -n "$_proj" ]; then
         printf '#!/bin/sh\nexec "%s/bin/dbt" --project-dir "%s" "$@"\n' \
           "$_venv" "$_proj" > "$_wrapper"
@@ -109,9 +106,21 @@ if [ -n "$_adapters_out" ]; then
       fi
       chmod +x "$_wrapper"
       log "Command '$_cmd' created (venv: $_venv$${_proj:+, project: $_proj})"
+      # Install venv only if the dbt binary isn't already present.
+      if [ -x "$_venv/bin/dbt" ]; then
+        log "dbt-$_type already installed at $_venv, skipping."
+      else
+        log "Installing dbt-$_type venv at $_venv..."
+        mkdir -p "$_venv"
+        python3 -m venv "$_venv" || { log "dbt-$_type venv creation failed, continuing..."; true; }
+        "$_venv/bin/pip" install --quiet --upgrade pip || true
+        "$_venv/bin/pip" install --quiet "$_core_pkg" "$_adapter_pkg" || log "dbt-$_type install failed, continuing..."
+        log "dbt-$_type installed."
+      fi
       "$_venv/bin/dbt" --version 2>/dev/null | head -1 || log "dbt-$_type venv dbt not found"
     fi
-  done
+  done < "$_adapters_tmp"
+  rm -f "$_adapters_tmp"
 fi
 
 # ── 3. dbt-graphify ───────────────────────────────────────────────────────────
