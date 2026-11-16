@@ -76,7 +76,7 @@ if [ -n "$_adapters_out" ]; then
     if [ "$_type" = "fusion" ]; then
       # No venv — wrap the Fusion binary (dbtf) already installed in step 1.
       if [ -n "$_proj" ]; then
-        printf '#!/bin/sh\nexport DBT_PROJECT_DIR="%s"\nexec "$HOME/.local/bin/dbtf" "$@"\n' \
+        printf '#!/bin/sh\nexec "$HOME/.local/bin/dbtf" --project-dir "%s" "$@"\n' \
           "$_proj" > "$_wrapper"
       else
         printf '#!/bin/sh\nexec "$HOME/.local/bin/dbtf" "$@"\n' > "$_wrapper"
@@ -96,8 +96,8 @@ if [ -n "$_adapters_out" ]; then
         log "dbt-$_type installed."
       fi
       if [ -n "$_proj" ]; then
-        printf '#!/bin/sh\nexport DBT_PROJECT_DIR="%s"\nexec "%s/bin/dbt" "$@"\n' \
-          "$_proj" "$_venv" > "$_wrapper"
+        printf '#!/bin/sh\nexec "%s/bin/dbt" --project-dir "%s" "$@"\n' \
+          "$_venv" "$_proj" > "$_wrapper"
       else
         printf '#!/bin/sh\nexec "%s/bin/dbt" "$@"\n' "$_venv" > "$_wrapper"
       fi
