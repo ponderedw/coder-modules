@@ -91,6 +91,19 @@ variable "legacy_settings_files" {
   description = "Settings files written by older template versions; the managed ANTHROPIC_* keys are removed from them."
 }
 
+variable "ai_tools" {
+  type        = list(string)
+  default     = []
+  description = "AI-related CLI tools to install. Supported: graphify, dbt-graphify, openspec, wizard, uv."
+}
+
+variable "nvm_version" {
+  type        = string
+  default     = "v0.40.5"
+  description = "nvm version for Node.js-based tools like openspec."
+}
+
+
 # Same parameter name as before ("litellm_token") so existing workspaces keep
 # their value after the switch.
 data "coder_parameter" "litellm_token" {
@@ -124,6 +137,8 @@ locals {
     mcp_servers           = var.mcp_servers
     plugins               = var.plugins
     legacy_settings_files = var.legacy_settings_files
+    ai_tools     = var.ai_tools
+    nvm_version  = var.nvm_version
   }
 }
 

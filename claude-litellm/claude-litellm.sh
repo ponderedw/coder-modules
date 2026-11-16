@@ -82,14 +82,58 @@ os.replace(tmp, path)
 print("[claude-litellm] MCP servers configured: " + ", ".join(servers))
 PY
 
-# ── 4. LiteLLM settings ─────────────────────────────────────────────────────
+# ── 4. AI tools ─────────────────────────────────────────────────────────────
+_ai_tools="$(python3 -c 'import json,sys; [print(x) for x in json.load(open(sys.argv[1]))["ai_tools"]]' "$CONFIG_FILE" 2>/dev/null || true)"
+_nvm_ver="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["nvm_version"])' "$CONFIG_FILE" 2>/dev/null || true)"
+
+while IFS= read -r _tool; do
+  [ -z "$_tool" ] && continue
+  case "$_tool" in
+    graphify)
+      if ! command -v graphify >/dev/null 2>&1; then
+        log "Installing graphify..."
+        pipx install graphifyy || log "graphify install failed, continuing..."
+      else
+        log "graphify already installed, skipping."
+      fi
+      graphify --version 2>/dev/null || log "graphify not found in PATH"
+      ;;
+    openspec)
+      export NVM_DIR="$HOME/.nvm"
+      if [ ! -d "$NVM_DIR" ]; then
+        log "Installing nvm $_nvm_ver..."
+        curl -fsSL "https://raw.githubusercontent.com/nvm-sh/nvm/$_nvm_ver/install.sh" | bash || log "nvm install failed, continuing..."
+      else
+        log "nvm already installed, skipping."
+      fi
+      [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+      if command -v nvm >/dev/null 2>&1; then
+        if ! node --version 2>/dev/null | grep -q '^v20\.'; then
+          log "Installing Node.js 20 via nvm..."
+          nvm install 20 && nvm use 20 && nvm alias default 20 || log "Node.js install failed, continuing..."
+        else
+          log "Node.js 20 already active."
+        fi
+        npm install -g @fission-ai/openspec@latest || log "openspec install failed, continuing..."
+        openspec --version 2>/dev/null || log "openspec not found in PATH"
+      else
+        log "nvm not available, skipping openspec install."
+      fi
+      ;;
+    *)
+      log "Unknown ai_tool '$_tool', skipping."
+      ;;
+  esac
+done <<< "$_ai_tools"
+
+# ── 5. LiteLLM settings ─────────────────────────────────────────────────────
 TOKEN="$(cfg token)"
 if [ -z "$TOKEN" ]; then
   log "No LiteLLM token provided, skipping Claude Code LiteLLM configuration."
   exit 0
 fi
 
-# 4a. User-scope Claude Code settings (CLI + VS Code extension).
+# 5a. User-scope Claude Code settings (CLI + VS Code extension).
 python3 - "$CONFIG_FILE" "$HOME/.claude/settings.json" <<'PY'
 import json, os, sys
 cfg = json.load(open(sys.argv[1]))
@@ -108,7 +152,7 @@ os.chmod(tmp, 0o600)
 os.replace(tmp, path)
 PY
 
-# 4b. Remove managed keys from settings files left by older template versions
+# 5b. Remove managed keys from settings files left by older template versions
 # (a project-level settings.local.json would otherwise win over user scope).
 python3 - "$CONFIG_FILE" <<'PY'
 import json, os, sys
@@ -138,7 +182,7 @@ for raw in cfg["legacy_settings_files"]:
     print("[claude-litellm] Cleaned legacy settings file " + path)
 PY
 
-# 4c. Same credentials for other Anthropic-SDK tools in the terminal.
+# 5c. Same credentials for other Anthropic-SDK tools in the terminal.
 python3 - "$CONFIG_FILE" "$HOME/.config/anthropic.env" <<'PY'
 import json, os, shlex, sys
 env = json.load(open(sys.argv[1]))["settings_env"]
