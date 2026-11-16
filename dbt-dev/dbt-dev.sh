@@ -45,6 +45,12 @@ if [ "$(cfg install_dbt_fusion)" = "true" ]; then
     fi
   fi
   export PATH="$HOME/.local/bin:$PATH"
+  # dbt Fusion 2.x installs the binary as "dbt"; normalise to "dbtf" so the
+  # rest of this script and all generated wrappers use a consistent name.
+  if [ -x "$HOME/.local/bin/dbt" ] && [ ! -x "$HOME/.local/bin/dbtf" ]; then
+    mv "$HOME/.local/bin/dbt" "$HOME/.local/bin/dbtf"
+    log "Renamed ~/.local/bin/dbt → dbtf"
+  fi
   "$HOME/.local/bin/dbtf" --version 2>/dev/null || log "dbtf not found in PATH"
 fi
 
@@ -90,8 +96,8 @@ if [ -n "$_adapters_out" ]; then
       else
         log "Installing dbt-$_type venv at $_venv..."
         mkdir -p "$(dirname "$_venv")"
-        python3 -m venv "$_venv"
-        "$_venv/bin/pip" install --quiet --upgrade pip
+        python3 -m venv "$_venv" || { log "dbt-$_type venv creation failed, continuing..."; }
+        "$_venv/bin/pip" install --quiet --upgrade pip || true
         "$_venv/bin/pip" install --quiet "$_core_pkg" "$_adapter_pkg" || log "dbt-$_type install failed, continuing..."
         log "dbt-$_type installed."
       fi
