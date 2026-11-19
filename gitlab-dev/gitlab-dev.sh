@@ -49,13 +49,24 @@ if [ -d "$_target/.git" ]; then
   git -C "$_target" remote set-url origin "$_auth_url"
   git -C "$_target" pull || log "Git pull failed, continuing..."
 elif [ -d "$_target" ] && [ -n "$(ls -A "$_target" 2>/dev/null)" ]; then
-  log "WARNING: $_target exists and is not empty but not a git repo — skipping."
-else
+  log "WARNING: $_target exists and is not a git repo — removing and re-cloning..."
+  rm -rf "$_target"
   log "Cloning $_repo_url into $_target..."
-  if git clone "$_auth_url" "$_target"; then
+  _clone_err="$(git clone "$_auth_url" "$_target" 2>&1)"
+  if [ $? -eq 0 ]; then
     log "Clone succeeded."
   else
     log "Clone failed (check the GitLab token parameter). Will retry on next start."
+    log "Error: $_clone_err"
+  fi
+else
+  log "Cloning $_repo_url into $_target..."
+  _clone_err="$(git clone "$_auth_url" "$_target" 2>&1)"
+  if [ $? -eq 0 ]; then
+    log "Clone succeeded."
+  else
+    log "Clone failed (check the GitLab token parameter). Will retry on next start."
+    log "Error: $_clone_err"
   fi
 fi
 
