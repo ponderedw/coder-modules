@@ -82,7 +82,7 @@ data "coder_parameter" "gitlab_token" {
 
 locals {
   _extension_ids = {
-    "gitlens" = "eamodio.gitlens"
+    "gitlens" = "eamodio.gitlens@19.6.0"
   }
 
   _selected_ext_ids = [
